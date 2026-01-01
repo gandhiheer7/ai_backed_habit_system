@@ -1,0 +1,92 @@
+[
+  {
+    "id": "bnefsycm2",
+    "habitId": "u10rmdh8r",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:08:29.955Z",
+    "notes": ""
+  },
+  {
+    "id": "84i3zpfge",
+    "habitId": "2",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:08:31.922Z",
+    "notes": ""
+  },
+  {
+    "id": "loaqdemjp",
+    "habitId": "1",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:08:32.812Z",
+    "notes": ""
+  },
+  {
+    "id": "ybslv4vks",
+    "habitId": "wuy7qk0n2",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:08:33.668Z",
+    "notes": ""
+  },
+  {
+    "id": "rkakgznv1",
+    "habitId": "u10rmdh8r",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:47:56.250Z",
+    "notes": ""
+  },
+  {
+    "id": "ob73u4qlg",
+    "habitId": "1",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:48:13.943Z",
+    "notes": ""
+  },
+  {
+    "id": "m70bix4k4",
+    "habitId": "1",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:48:38.927Z",
+    "notes": ""
+  },
+  {
+    "id": "pc3jdwwkg",
+    "habitId": "1",
+    "userId": "demo_user_123",
+    "status": "missed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:55:42.318Z",
+    "notes": ""
+  },
+  {
+    "id": "i4hnh25hc",
+    "habitId": "2",
+    "userId": "demo_user_123",
+    "status": "missed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:55:44.647Z",
+    "notes": ""
+  },
+  {
+    "id": "s7ao8b3oo",
+    "habitId": "r0y4bbfoc",
+    "userId": "demo_user_123",
+    "status": "completed",
+    "date": "2026-01-01",
+    "timestamp": "2026-01-01T14:56:21.876Z",
+    "notes": ""
+  }
+]

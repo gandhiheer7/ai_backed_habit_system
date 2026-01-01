@@ -1,0 +1,57 @@
+[
+  {
+    "id": "1",
+    "userId": "demo_user_123",
+    "name": "Strategic Reflection",
+    "description": "Review top 3 objectives.",
+    "duration": "10 min",
+    "status": "missed",
+    "streak": 0,
+    "createdAt": "2026-01-01T14:07:47.522Z",
+    "weight": 8
+  },
+  {
+    "id": "2",
+    "userId": "demo_user_123",
+    "name": "Deep Work Block",
+    "description": "Distraction-free focus.",
+    "duration": "90 min",
+    "status": "missed",
+    "streak": 0,
+    "createdAt": "2026-01-01T14:07:47.522Z",
+    "weight": 10
+  },
+  {
+    "id": "wuy7qk0n2",
+    "userId": "demo_user_123",
+    "createdAt": "2026-01-01T14:08:00.090Z",
+    "streak": 1,
+    "status": "completed",
+    "weight": 5,
+    "name": "cycling",
+    "duration": "15 min",
+    "description": "User defined protocol"
+  },
+  {
+    "id": "u10rmdh8r",
+    "userId": "demo_user_123",
+    "createdAt": "2026-01-01T14:08:25.107Z",
+    "streak": 2,
+    "status": "completed",
+    "weight": 5,
+    "name": "running",
+    "duration": "15 min",
+    "description": "User defined protocol"
+  },
+  {
+    "id": "r0y4bbfoc",
+    "userId": "demo_user_123",
+    "createdAt": "2026-01-01T14:56:17.987Z",
+    "streak": 1,
+    "status": "completed",
+    "weight": 5,
+    "name": "cricket",
+    "duration": "45 min",
+    "description": "User defined protocol"
+  }
+]
