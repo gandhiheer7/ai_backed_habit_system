@@ -1,35 +1,121 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
-  const user = await getCurrentUser();
-  const habits = db.habits.getAll(user.id);
-  const checkins = db.checkins.getAll(user.id);
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
 
-  // 1. Calculate Completion Rate
-  const total = checkins.length;
-  const completed = checkins.filter(c => c.status === 'completed').length;
-  const rate = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-  // 2. Generate Mock Chart Data (45 Days)
-  // In a real app, you'd aggregate real check-in weights per day
-  const intensityData = Array.from({ length: 45 }, (_, i) => ({
-    day: `D${i + 1}`,
-    intensity: 40 + Math.random() * 60,
-    focus: 30 + Math.random() * 50,
-  }));
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  // 3. Cognitive Load (Simple Mock Calculation)
-  // Sum of weights of today's pending habits
-  const pendingHabits = habits.filter(h => h.status === 'pending');
-  const loadScore = pendingHabits.reduce((acc, h) => acc + (h.weight || 5), 0);
+    // Get all checkins for the user from the past 30 days
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  return NextResponse.json({
-    intensityData,
-    completionRate: rate,
-    totalFocusMinutes: completed * 30, // Approx 30 mins per habit
-    currentStreak: 14, // Mock for now
-    cognitiveLoadScore: loadScore
-  });
+    const { data: checkins, error: checkinsError } = await supabase
+      .from('checkins')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+
+    if (checkinsError) {
+      throw checkinsError
+    }
+
+    // Get all habits for the user
+    const { data: habits, error: habitsError } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', user.id)
+
+    if (habitsError) {
+      throw habitsError
+    }
+
+    // Calculate metrics
+    const totalHabits = habits?.length || 0
+    const completedCheckins = checkins?.filter((c) => c.status === 'completed').length || 0
+    const totalCheckins = checkins?.length || 0
+    const completionRate = totalCheckins > 0 ? Math.round((completedCheckins / totalCheckins) * 100) : 0
+
+    // Calculate total focus minutes
+    const totalFocusMinutes = habits?.reduce((sum, habit) => {
+      const durationMatch = habit.duration?.match(/(\d+)/)
+      const minutes = durationMatch ? parseInt(durationMatch[1]) : 0
+      const habitCheckins = checkins?.filter((c) => c.habit_id === habit.id && c.status === 'completed') || []
+      return sum + minutes * habitCheckins.length
+    }, 0) || 0
+
+    // Calculate current streak (consecutive completed days)
+    const today = new Date()
+    let currentStreak = 0
+    let checkDate = new Date(today)
+
+    while (checkDate >= thirtyDaysAgo) {
+      const dateStr = checkDate.toISOString().split('T')[0]
+      const dayCheckins = checkins?.filter((c) => c.date === dateStr) || []
+      
+      if (dayCheckins.length > 0) {
+        const allCompleted = dayCheckins.every((c) => c.status === 'completed')
+        if (allCompleted) {
+          currentStreak++
+        } else {
+          break
+        }
+      } else {
+        break
+      }
+
+      checkDate.setDate(checkDate.getDate() - 1)
+    }
+
+    // Calculate cognitive load score (weighted by habit weight)
+    const cognitiveLoadScore = habits?.reduce((sum, habit) => {
+      const weight = habit.weight || 5
+      const habitCheckins = checkins?.filter((c) => c.habit_id === habit.id && c.status === 'completed') || []
+      return sum + weight * habitCheckins.length
+    }, 0) || 0
+
+    // Generate intensity data for chart (last 30 days)
+    const intensityData = []
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const dateStr = date.toISOString().split('T')[0]
+      
+      const dayCheckins = checkins?.filter((c) => c.date === dateStr) || []
+      const dayIntensity = dayCheckins.filter((c) => c.status === 'completed').length
+      const dayFocus = dayCheckins.reduce((sum, checkin) => {
+        const habit = habits?.find((h) => h.id === checkin.habit_id)
+        const durationMatch = habit?.duration?.match(/(\d+)/)
+        return sum + (durationMatch ? parseInt(durationMatch[1]) : 0)
+      }, 0)
+
+      intensityData.push({
+        day: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        intensity: dayIntensity,
+        focus: dayFocus,
+      })
+    }
+
+    return NextResponse.json({
+      intensityData,
+      completionRate,
+      totalFocusMinutes,
+      currentStreak,
+      cognitiveLoadScore: Math.round(cognitiveLoadScore),
+    })
+  } catch (error: any) {
+    console.error('Analytics error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch analytics' },
+      { status: 500 }
+    )
+  }
 }

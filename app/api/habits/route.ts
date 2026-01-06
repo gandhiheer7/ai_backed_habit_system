@@ -1,47 +1,97 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
-import { Habit } from '@/lib/types';
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
-  const user = await getCurrentUser();
-  const habits = db.habits.getAll(user.id);
-  
-  // Seed initial data if empty (First Run Experience)
-  if (habits.length === 0) {
-    const initial: Habit[] = [
-      { 
-        id: "1", userId: user.id, name: "Strategic Reflection", 
-        description: "Review top 3 objectives.", duration: "10 min", 
-        status: "pending", streak: 5, createdAt: new Date().toISOString(), weight: 8 
-      },
-      { 
-        id: "2", userId: user.id, name: "Deep Work Block", 
-        description: "Distraction-free focus.", duration: "90 min", 
-        status: "pending", streak: 12, createdAt: new Date().toISOString(), weight: 10 
-      },
-    ];
-    initial.forEach(h => db.habits.create(h));
-    return NextResponse.json(initial);
+// GET: Fetch all habits for a user
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    // Get the authenticated user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error('Auth error:', userError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: habits, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Fetch error:', error)
+      throw error
+    }
+
+    return NextResponse.json(habits || [])
+  } catch (error: any) {
+    console.error('Habits fetch error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch habits' },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json(habits);
 }
 
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  const body = await req.json();
-  
-  const newHabit: Habit = {
-    id: Math.random().toString(36).substr(2, 9),
-    userId: user.id,
-    createdAt: new Date().toISOString(),
-    streak: 0,
-    status: "pending",
-    weight: 5, // Default cognitive weight
-    ...body
-  };
+// POST: Create a new habit
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
 
-  db.habits.create(newHabit);
-  return NextResponse.json(newHabit);
+    // Get the authenticated user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error('Auth error:', userError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { name, description, duration, category, weight } = body
+
+    if (!name) {
+      return NextResponse.json(
+        { error: 'name is required' },
+        { status: 400 }
+      )
+    }
+
+    console.log('Creating habit for user:', user.id)
+
+    const { data: habit, error } = await supabase
+      .from('habits')
+      .insert({
+        user_id: user.id,
+        name,
+        description: description || '',
+        duration: duration || '15 min',
+        category: category || '',
+        weight: weight || 5,
+        status: 'pending',
+        streak: 0,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Insert error:', error)
+      throw error
+    }
+
+    return NextResponse.json(habit, { status: 201 })
+  } catch (error: any) {
+    console.error('Habit creation error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to create habit' },
+      { status: 500 }
+    )
+  }
 }

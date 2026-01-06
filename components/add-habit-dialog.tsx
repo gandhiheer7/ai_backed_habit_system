@@ -25,18 +25,27 @@ import {
 export function AddHabitDialog({ onAdd }: { onAdd: (habit: any) => void }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("15")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Pass the data in the format expected by the API
     onAdd({
       name,
+      description,
       duration: `${duration} min`,
-      description: "User defined protocol",
-      status: "pending"
+      status: "pending",
+      category: "",
+      weight: 5,
     })
+    
+    // Reset form
     setOpen(false)
     setName("")
+    setDescription("")
+    setDuration("15")
   }
 
   return (
@@ -66,6 +75,18 @@ export function AddHabitDialog({ onAdd }: { onAdd: (habit: any) => void }) {
               required
             />
           </div>
+          
+          <div className="grid gap-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Input
+              id="description"
+              placeholder="e.g. Read 10 pages of Stoic philosophy"
+              className="glass-card bg-white/5 border-white/10"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="duration">Duration (Minutes)</Label>
             <Select value={duration} onValueChange={setDuration}>
