@@ -17,12 +17,13 @@ export async function GET(request: NextRequest) {
     // Get all checkins for the user from the past 30 days
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
     const { data: checkins, error: checkinsError } = await supabase
       .from('checkins')
       .select('*')
       .eq('user_id', user.id)
-      .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+      .gte('date', thirtyDaysAgoStr)
 
     if (checkinsError) {
       throw checkinsError
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate metrics
-    const totalHabits = habits?.length || 0
     const completedCheckins = checkins?.filter((c) => c.status === 'completed').length || 0
     const totalCheckins = checkins?.length || 0
     const completionRate = totalCheckins > 0 ? Math.round((completedCheckins / totalCheckins) * 100) : 0
@@ -53,26 +53,46 @@ export async function GET(request: NextRequest) {
     }, 0) || 0
 
     // Calculate current streak (consecutive completed days)
+    // We use a Set of dates where at least one habit was completed to start
+    // But logically, a streak means "All habits for that day were completed" or "At least one"? 
+    // Usually it's "User logged in and did something". 
+    // Based on previous code: "allCompleted".
+    
     const today = new Date()
     let currentStreak = 0
     let checkDate = new Date(today)
-
-    while (checkDate >= thirtyDaysAgo) {
-      const dateStr = checkDate.toISOString().split('T')[0]
-      const dayCheckins = checkins?.filter((c) => c.date === dateStr) || []
-      
-      if (dayCheckins.length > 0) {
-        const allCompleted = dayCheckins.every((c) => c.status === 'completed')
-        if (allCompleted) {
-          currentStreak++
-        } else {
-          break
+    
+    // Safety break after 365 days to prevent infinite loops
+    let daysChecked = 0
+    
+    while (daysChecked < 30) {
+        const dateStr = checkDate.toISOString().split('T')[0]
+        
+        // Find checkins for this specific date
+        const dayCheckins = checkins?.filter((c) => c.date === dateStr) || []
+        
+        // If no checkins found for a date, streak is broken
+        if (dayCheckins.length === 0) {
+            // Edge case: If it's today and user hasn't done anything yet, don't break streak from yesterday
+            if (daysChecked === 0) {
+                checkDate.setDate(checkDate.getDate() - 1)
+                daysChecked++
+                continue
+            }
+            break
         }
-      } else {
-        break
-      }
-
-      checkDate.setDate(checkDate.getDate() - 1)
+        
+        // Check if all recorded checkins for that day were completed
+        const allCompleted = dayCheckins.every((c) => c.status === 'completed')
+        
+        if (allCompleted) {
+            currentStreak++
+        } else {
+            break
+        }
+        
+        checkDate.setDate(checkDate.getDate() - 1)
+        daysChecked++
     }
 
     // Calculate cognitive load score (weighted by habit weight)
@@ -84,6 +104,7 @@ export async function GET(request: NextRequest) {
 
     // Generate intensity data for chart (last 30 days)
     const intensityData = []
+    
     for (let i = 29; i >= 0; i--) {
       const date = new Date(today)
       date.setDate(date.getDate() - i)

@@ -1,64 +1,59 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  console.log("[API /api/auth/signup] Signup request received")
   try {
-    const body = await request.json()
-    const { email, password, displayName } = body
+    const { email, password, displayName, role } = await request.json()
+    console.log(`[API] Processing signup for email: ${email}, role: ${role}`)
 
-    console.log('Signup request:', { email, displayName })
-
+    // 1. Create User in Auth (Supabase Auth)
     const supabase = await createServerSupabaseClient()
-
-    // Sign up user
-    const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase().trim(),
+    
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
       password,
       options: {
         data: {
           display_name: displayName,
-        },
-      },
+          role: role
+        }
+      }
     })
 
-    console.log('Auth signup result:', { user: data.user?.id, error })
-
-    if (error) {
-      console.error('Auth signup error:', error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    if (authError) {
+      console.error("[API] Supabase Auth Error:", authError.message)
+      return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
-    // Create user profile in public.users table
-    if (data.user) {
-      console.log('Creating user profile for:', data.user.id)
+    const userId = authData.user?.id
+    console.log("[API] Auth user created with ID:", userId)
 
-      const { data: insertData, error: profileError } = await supabase
+    if (userId) {
+      // 2. Create User Profile in 'users' table
+      console.log("[API] Inserting into 'users' table...")
+      const { error: profileError } = await supabase
         .from('users')
         .insert({
-          id: data.user.id,
-          email: data.user.email || email.toLowerCase().trim(),
+          id: userId,
+          email: email,
           display_name: displayName,
+          role: role,
+          created_at: new Date().toISOString()
         })
 
       if (profileError) {
-        console.error('Profile insert error:', profileError)
-        // Don't fail signup if profile creation fails - user can still login
+        console.error('[API] Profile creation error (Non-fatal):', profileError)
       } else {
-        console.log('Profile created successfully')
+        console.log("[API] Profile insertion successful")
       }
     }
 
-    return NextResponse.json(
-      { 
-        message: 'Account created successfully. Please check your email to confirm.',
-        user: data.user 
-      },
-      { status: 201 }
-    )
+    return NextResponse.json({ success: true, user: authData.user }, { status: 201 })
   } catch (error: any) {
-    console.error('Signup error:', error)
+    console.error('[API] Signup Fatal Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Signup failed' },
+      { error: error.message || 'Internal Server Error' },
       { status: 500 }
     )
   }

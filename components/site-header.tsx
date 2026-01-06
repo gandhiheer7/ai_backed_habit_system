@@ -19,7 +19,7 @@ export function SiteHeader() {
   const { user, logout } = useAuth()
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutGrid },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
     { href: "/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/settings", label: "Settings", icon: Settings },
   ]

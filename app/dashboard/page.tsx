@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
 
 export default function Dashboard() {
   const { user, userProfile, loading: authLoading } = useAuth()
@@ -23,52 +24,73 @@ export default function Dashboard() {
 
   const [habits, setHabits] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  
+  // Dashboard-specific loading state
+  const [dataLoading, setDataLoading] = useState(true)
 
   const [showMissedModal, setShowMissedModal] = useState(false)
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null)
 
-  // 1. Redirect if not logged in
+  // 1. Safe Data Fetching Logic
   useEffect(() => {
-    if (!authLoading && !user) {
+    // If auth is still loading, do nothing yet
+    if (authLoading) return
+
+    // If auth finished but no user, force redirect (backup to middleware)
+    if (!user) {
+      console.log("[Dashboard] No user found after auth load, redirecting...")
       router.push("/login")
+      return
     }
+
+    console.log("[Dashboard] User authenticated, fetching protocol data...")
+    setDataLoading(true)
+
+    const fetchHabits = fetch(`/api/habits`)
+      .then(async res => {
+        if (!res.ok) throw new Error(`API Error: ${res.status}`)
+        return res.json()
+      })
+      .then(data => {
+        console.log("[Dashboard] Habits loaded:", data.length)
+        return Array.isArray(data) ? data : []
+      })
+      .catch(err => {
+        console.error("[Dashboard] Failed to load habits:", err)
+        toast({ variant: "destructive", title: "Connection Error", description: "Could not load habits." })
+        return []
+      })
+
+    const fetchStats = fetch(`/api/analytics`)
+      .then(async res => {
+        if (!res.ok) throw new Error(`API Error: ${res.status}`)
+        return res.json()
+      })
+      .then(data => {
+        console.log("[Dashboard] Analytics loaded")
+        return data
+      })
+      .catch(err => {
+        console.error("[Dashboard] Failed to load analytics:", err)
+        return null
+      })
+
+    // Execute both
+    Promise.all([fetchHabits, fetchStats])
+      .then(([habitsData, statsData]) => {
+        setHabits(habitsData || [])
+        setStats(statsData || null)
+      })
+      .finally(() => {
+        console.log("[Dashboard] Loading sequence complete")
+        setDataLoading(false)
+      })
+
   }, [user, authLoading, router])
 
-  // 2. Fetch Data (Habits AND Analytics)
-  useEffect(() => {
-    if (user) {
-      setLoading(true)
-
-      // Fetch Habits (no userId param needed - server will get authenticated user)
-      const fetchHabits = fetch(`/api/habits`)
-        .then(res => res.json())
-        .then(data => Array.isArray(data) ? data : [])
-        .catch(err => {
-          console.error("Failed to load habits:", err)
-          return []
-        })
-
-      // Fetch Analytics (no userId param needed - server will get authenticated user)
-      const fetchStats = fetch(`/api/analytics`)
-        .then(res => res.json())
-        .catch(err => {
-          console.error("Failed to load analytics:", err)
-          return null
-        })
-
-      Promise.all([fetchHabits, fetchStats])
-        .then(([habitsData, statsData]) => {
-          setHabits(habitsData || [])
-          setStats(statsData || null)
-          setLoading(false)
-        })
-    }
-  }, [user])
-
-  // 3. Handle Status Change
+  // 2. Optimistic UI Updates
   const handleStatusChange = async (id: string, status: "completed" | "missed") => {
-    // Optimistic UI Update
+    const previousHabits = [...habits]
     setHabits(habits.map((h) => (h.id === id ? { ...h, status } : h)))
 
     if (status === "missed") {
@@ -76,69 +98,64 @@ export default function Dashboard() {
       setShowMissedModal(true)
     } else {
       try {
-        await fetch('/api/checkin', {
+        const res = await fetch('/api/checkin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ habitId: id, status })
         })
+
+        if (!res.ok) throw new Error('Failed to check in')
+
       } catch (error) {
         console.error("Sync failed:", error)
+        setHabits(previousHabits)
+        toast({ 
+          variant: "destructive", 
+          title: "Sync Failed", 
+          description: "Could not save your progress. Please try again." 
+        })
       }
     }
   }
 
-  // Handle habit deletion
   const handleDeleteHabit = (id: string) => {
     setHabits(habits.filter((h) => h.id !== id))
   }
 
-  // Handle habit edit
   const handleEditHabit = (id: string, updatedData: any) => {
     setHabits(habits.map((h) => (h.id === id ? { ...h, ...updatedData } : h)))
   }
 
-  // 4. Add Habit
   const handleAddHabit = async (newHabit: any) => {
     if (!user) return
     try {
-      console.log('Adding habit with data:', newHabit)
-
       const res = await fetch('/api/habits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newHabit)
       })
 
-      console.log('Response status:', res.status)
-      const responseText = await res.text()
-      console.log('Response body:', responseText)
-
       if (!res.ok) {
-        try {
-          const error = JSON.parse(responseText)
-          console.error('API error:', error)
-        } catch {
-          console.error('API error (unparseable):', responseText)
-        }
-        return
+        const errorData = await res.json()
+        throw new Error(errorData.error || 'Failed to create habit')
       }
 
-      const savedHabit = JSON.parse(responseText)
-      console.log('Habit saved:', savedHabit)
-      setHabits([...habits, savedHabit])
-    } catch (error) {
+      const savedHabit = await res.json()
+      setHabits([savedHabit, ...habits])
+      toast({ title: "Success", description: "Protocol initialized." })
+    } catch (error: any) {
       console.error("Failed to create habit:", error)
+      toast({ variant: "destructive", title: "Error", description: error.message })
     }
   }
 
-  // 5. Confirm Missed
   const confirmMissed = async (reason: string) => {
-    setHabits(habits.map((h) => (h.id === activeHabitId ? { ...h, status: "missed" } : h)))
+    const previousHabits = [...habits]
     setShowMissedModal(false)
 
     if (activeHabitId) {
       try {
-        await fetch('/api/checkin', {
+        const res = await fetch('/api/checkin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -147,21 +164,36 @@ export default function Dashboard() {
             reason
           })
         })
+
+        if (!res.ok) throw new Error('Failed to record missed habit')
+
       } catch (error) {
         console.error("Sync failed:", error)
+        setHabits(previousHabits.map(h => h.id === activeHabitId ? { ...h, status: 'pending' } : h))
+         toast({ 
+          variant: "destructive", 
+          title: "Sync Failed", 
+          description: "Could not save reason. Please try again." 
+        })
       }
     }
   }
 
-  if (authLoading || loading) {
+  // RENDER LOADING STATE
+  if (authLoading || dataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
-        Loading Protocol...
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="animate-pulse">
+            {authLoading ? "Authenticating Neural Link..." : "Loading Protocol Data..."}
+          </p>
+        </div>
       </div>
     )
   }
 
-  // Calculate session progress for the progress bar
+  // CALCULATIONS
   const completedCount = habits.filter((h) => h.status === "completed").length
   const progressPercentage = habits.length > 0 ? (completedCount / habits.length) * 100 : 0
 
@@ -170,7 +202,6 @@ export default function Dashboard() {
       <SiteHeader />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
         <div className="lg:col-span-2 space-y-8">
           <section>
             <div className="mb-8">
@@ -190,7 +221,6 @@ export default function Dashboard() {
               <AddHabitDialog onAdd={handleAddHabit} />
             </div>
 
-            {/* Session Progress Bar */}
             <div className="mb-6 flex items-center justify-between bg-muted/20 p-4 rounded-xl">
               <span className="text-xs font-semibold text-primary uppercase tracking-widest">Session Progress</span>
               <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
@@ -223,7 +253,6 @@ export default function Dashboard() {
           <AICoach />
         </div>
 
-        {/* Sidebar / Summary */}
         <aside className="space-y-6">
           <div className="glass-card p-8 rounded-2xl">
             <h3 className="text-lg font-semibold mb-6">Performance Summary</h3>
@@ -259,7 +288,6 @@ export default function Dashboard() {
         </aside>
       </div>
 
-      {/* Missed Habit Dialog */}
       <Dialog open={showMissedModal} onOpenChange={setShowMissedModal}>
         <DialogContent className="glass-card sm:max-w-md border-0 ring-1 ring-white/10">
           <DialogHeader>

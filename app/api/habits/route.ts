@@ -1,19 +1,18 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { habitSchema } from '@/lib/validators'
 
 // GET: Fetch all habits for a user
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get the authenticated user
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.error('Auth error:', userError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -43,28 +42,28 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get the authenticated user
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.error('Auth error:', userError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { name, description, duration, category, weight } = body
-
-    if (!name) {
+    
+    // VALIDATION: Use Zod schema
+    const validationResult = habitSchema.safeParse(body)
+    
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'name is required' },
+        { error: 'Invalid input', details: validationResult.error.format() },
         { status: 400 }
       )
     }
 
-    console.log('Creating habit for user:', user.id)
+    const { name, description, duration, category, weight } = validationResult.data
 
     const { data: habit, error } = await supabase
       .from('habits')
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name,
         description: description || '',
-        duration: duration || '15 min',
+        duration: duration,
         category: category || '',
         weight: weight || 5,
         status: 'pending',

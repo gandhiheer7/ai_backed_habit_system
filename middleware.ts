@@ -33,8 +33,23 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if needed
-  await supabase.auth.getUser()
+  // Refresh session if needed and get user
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // PROTECTED ROUTES LOGIC
+  // If no user and trying to access protected routes, redirect to login
+  const protectedPaths = ['/dashboard', '/analytics', '/settings', '/api/habits', '/api/checkin']
+  const isProtected = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+
+  if (!user && isProtected) {
+    // For API routes, return 401 instead of redirect
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    // For pages, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
   return response
 }

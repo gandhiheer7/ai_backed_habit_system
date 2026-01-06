@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { checkinSchema } from '@/lib/validators'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,16 +16,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { habitId, status, reason, notes } = body
-
-    if (!habitId || !status) {
+    
+    // VALIDATION: Use Zod schema
+    const validationResult = checkinSchema.safeParse(body)
+    
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'habitId and status are required' },
+        { error: 'Invalid input', details: validationResult.error.format() },
         { status: 400 }
       )
     }
 
-    // Get today's date in YYYY-MM-DD format
+    const { habitId, status, reason, notes } = validationResult.data
+
+    // Get today's date in YYYY-MM-DD format (UTC)
     const today = new Date().toISOString().split('T')[0]
 
     // Check if checkin already exists for today
