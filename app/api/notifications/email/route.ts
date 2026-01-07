@@ -23,7 +23,7 @@ async function getDailyInsight() {
           content: "Write a single, punchy, 2-sentence motivational command for a high-performer starting their day. No emojis. No hashtags. Example: 'Discipline is the bridge between goals and accomplishment. Cross it today.'"
         }
       ],
-      model: "llama3-8b-8192",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.8,
       max_tokens: 60,
     });
