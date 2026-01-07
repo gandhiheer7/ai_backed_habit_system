@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
       .gte('date', thirtyDaysAgoStr)
 
     if (checkinsError) {
+      logger.error('Analytics: Failed to fetch checkins', checkinsError)
       throw checkinsError
     }
 
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
 
     if (habitsError) {
+      logger.error('Analytics: Failed to fetch habits', habitsError)
       throw habitsError
     }
 
@@ -53,16 +56,11 @@ export async function GET(request: NextRequest) {
     }, 0) || 0
 
     // Calculate current streak (consecutive completed days)
-    // We use a Set of dates where at least one habit was completed to start
-    // But logically, a streak means "All habits for that day were completed" or "At least one"? 
-    // Usually it's "User logged in and did something". 
-    // Based on previous code: "allCompleted".
-    
     const today = new Date()
     let currentStreak = 0
     let checkDate = new Date(today)
     
-    // Safety break after 365 days to prevent infinite loops
+    // Safety break after 30 days
     let daysChecked = 0
     
     while (daysChecked < 30) {
@@ -133,7 +131,7 @@ export async function GET(request: NextRequest) {
       cognitiveLoadScore: Math.round(cognitiveLoadScore),
     })
   } catch (error: any) {
-    console.error('Analytics error:', error)
+    logger.error('Analytics calculation error', error)
     return NextResponse.json(
       { error: error.message || 'Failed to fetch analytics' },
       { status: 500 }

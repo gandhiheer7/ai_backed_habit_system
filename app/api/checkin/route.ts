@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkinSchema } from '@/lib/validators'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     const validationResult = checkinSchema.safeParse(body)
     
     if (!validationResult.success) {
+      logger.warn('Checkin validation failed', { userId: user.id, errors: validationResult.error.format() })
       return NextResponse.json(
         { error: 'Invalid input', details: validationResult.error.format() },
         { status: 400 }
@@ -28,6 +30,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { habitId, status, reason, notes } = validationResult.data
+
+    // Log the intent
+    logger.info('Processing checkin', { userId: user.id, habitId, status })
 
     // Get today's date in YYYY-MM-DD format (UTC)
     const today = new Date().toISOString().split('T')[0]
@@ -99,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 })
   } catch (error: any) {
-    console.error('Checkin error:', error)
+    logger.error('Checkin fatal error', error)
     return NextResponse.json(
       { error: error.message || 'Failed to create checkin' },
       { status: 500 }

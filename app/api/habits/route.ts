@@ -1,18 +1,16 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { habitSchema } from '@/lib/validators'
+import { logger } from '@/lib/logger' // IMPORT LOGGER
 
 // GET: Fetch all habits for a user
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
+      logger.warn('Unauthorized access attempt to GET /api/habits') // CHANGED
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -23,13 +21,13 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Fetch error:', error)
+      logger.error('Habits database fetch error', error) // CHANGED
       throw error
     }
 
     return NextResponse.json(habits || [])
   } catch (error: any) {
-    console.error('Habits fetch error:', error)
+    logger.error('Habits API fatal error', error) // CHANGED
     return NextResponse.json(
       { error: error.message || 'Failed to fetch habits' },
       { status: 500 }
@@ -41,29 +39,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    
-    // VALIDATION: Use Zod schema
-    const validationResult = habitSchema.safeParse(body)
-    
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid input', details: validationResult.error.format() },
-        { status: 400 }
-      )
+    const { name, description, duration, category, weight } = body
+
+    if (!name) {
+      logger.warn('Habit creation failed: Missing name', { userId: user.id }) // CHANGED
+      return NextResponse.json({ error: 'name is required' }, { status: 400 })
     }
 
-    const { name, description, duration, category, weight } = validationResult.data
+    logger.info('Creating habit', { userId: user.id, habitName: name }) // CHANGED
 
     const { data: habit, error } = await supabase
       .from('habits')
@@ -71,7 +61,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name,
         description: description || '',
-        duration: duration,
+        duration: duration || '15 min',
         category: category || '',
         weight: weight || 5,
         status: 'pending',
@@ -81,13 +71,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Insert error:', error)
+      logger.error('Habit insert error', error) // CHANGED
       throw error
     }
 
     return NextResponse.json(habit, { status: 201 })
   } catch (error: any) {
-    console.error('Habit creation error:', error)
+    logger.error('Habit creation fatal error', error) // CHANGED
     return NextResponse.json(
       { error: error.message || 'Failed to create habit' },
       { status: 500 }

@@ -9,10 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { User, Brain, Bell, Activity, Zap, Coffee, CheckCircle2, Loader2, Lock } from "lucide-react"
+import { User, Brain, Bell, Loader2, Lock } from "lucide-react"
 
 export default function SettingsPage() {
   const { user, userProfile, loading } = useAuth()
@@ -63,20 +62,12 @@ export default function SettingsPage() {
       })
 
       if (res.ok) {
-        toast({
-          title: "AI Settings Updated",
-          description: "Your coaching preferences have been saved.",
-          action: <CheckCircle2 className="text-emerald-500" />,
-        })
+        toast({ title: "AI Settings Updated", description: "Preferences synced." })
       } else {
         throw new Error("Failed to save")
       }
     } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: "Could not save your AI settings.",
-        variant: "destructive",
-      })
+      toast({ title: "Save Failed", variant: "destructive" })
     } finally {
       setIsSaving(false)
     }
@@ -95,36 +86,25 @@ export default function SettingsPage() {
       })
 
       if (res.ok) {
-        toast({
-          title: "Notifications Updated",
-          description: "Your notification preferences have been saved.",
-          action: <CheckCircle2 className="text-emerald-500" />,
-        })
+        toast({ title: "Notifications Updated", description: "Preferences synced." })
       } else {
         throw new Error("Failed to save")
       }
     } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: "Could not save your notification settings.",
-        variant: "destructive",
-      })
+      toast({ title: "Save Failed", variant: "destructive" })
     } finally {
       setIsSaving(false)
     }
   }
 
-  const initials = userProfile?.display_name
-    ? userProfile.display_name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()
-    : user?.email?.substring(0, 1).toUpperCase() || "U"
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
-        Loading settings...
-      </div>
-    )
+    return <div className="min-h-screen flex items-center justify-center">Loading settings...</div>
   }
+
+  // Fallback values to prevent "Loading..." flash if profile is missing
+  const displayName = userProfile?.display_name || user?.user_metadata?.display_name || user?.email?.split('@')[0] || "User"
+  const displayRole = userProfile?.role || "Executive"
+  const displayEmail = user?.email || "No Email Linked"
 
   return (
     <main className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-8">
@@ -138,7 +118,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="profile" className="space-y-8">
         <TabsList className="bg-white/5 border border-white/10 p-1 rounded-xl">
           <TabsTrigger value="profile" className="rounded-lg gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <User className="w-4 h-4" /> Profile
+            <User className="w-4 h-4" /> Identity
           </TabsTrigger>
           <TabsTrigger value="ai" className="rounded-lg gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Brain className="w-4 h-4" /> AI Coach
@@ -154,27 +134,8 @@ export default function SettingsPage() {
             <div className="glass-card p-6 rounded-2xl bg-primary/5 border-primary/20">
               <h3 className="font-semibold text-primary mb-2">Calibration Tips</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                The AI uses your fixed Protocol Identity to tailor habit suggestions.
+                Your User Identity is the foundation of the protocol. It is immutable to ensure consistent tracking data.
               </p>
-            </div>
-
-            <div className="glass-card p-6 rounded-2xl">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-500" />
-                Cognitive Load Model
-              </h3>
-              <div className="space-y-4">
-                <div className="text-xs text-muted-foreground leading-relaxed">
-                  <strong className="text-foreground">Definition:</strong> A real-time metric tracking mental energy depletion based on task complexity and switching costs.
-                </div>
-
-                <div className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-2">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">The Formula</p>
-                  <p className="text-xs font-mono text-primary">
-                    Load = Σ(Time × Weight) + (Switching × 5)
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -183,51 +144,28 @@ export default function SettingsPage() {
             
             {/* --- PROFILE TAB (READ ONLY) --- */}
             <TabsContent value="profile" className="glass-card p-8 rounded-2xl mt-0 space-y-6">
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold mb-1">Protocol Identity</h2>
-                  <p className="text-sm text-muted-foreground">Identity parameters are immutable.</p>
+                  <h2 className="text-xl font-semibold mb-1">User Identity</h2>
                 </div>
-                <div className="p-2 bg-muted/20 rounded-full">
+                <div className="p-2 bg-muted/20 rounded-full" title="Locked by System">
                   <Lock className="w-4 h-4 text-muted-foreground" />
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 mb-2">
-                <Avatar className="h-20 w-20 border-2 border-primary/20">
-                  <AvatarImage src={user?.photoURL || ""} />
-                  <AvatarFallback className="text-xl">{initials}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-medium text-lg">{userProfile?.display_name || "Executive"}</h3>
-                  <p className="text-sm text-muted-foreground">{user?.email}</p>
-                </div>
-              </div>
-
-              <div className="grid gap-6 pt-4">
+              <div className="grid gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    value={userProfile?.display_name || ""}
-                    readOnly
-                    disabled
-                    className="bg-muted/50 border-white/5 text-foreground cursor-not-allowed opacity-100 font-medium"
-                  />
+                  <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Name</Label>
+                  <div className="flex h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground">
+                    {displayName}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="role">Professional Role</Label>
-                  <Input
-                    id="role"
-                    value={userProfile?.role || "Not Assigned"}
-                    readOnly
-                    disabled
-                    className="bg-muted/50 border-white/5 text-foreground cursor-not-allowed opacity-100 font-medium"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Role assigned during protocol initialization.
-                  </p>
+                  <Label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Email</Label>
+                   <div className="flex h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground">
+                    {displayEmail}
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -237,7 +175,6 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-xl font-semibold mb-4">Neural Calibration</h2>
               </div>
-
               <div className="space-y-6">
                 <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
                   <div>
@@ -280,7 +217,6 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-xl font-semibold mb-4">Alerts & Breaches</h2>
               </div>
-
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="briefing">Morning Briefing Time</Label>
@@ -293,7 +229,6 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">When should we send your daily briefing?</p>
                 </div>
-
                 <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-white/5">
                   <div>
                     <Label className="text-base">Deep Work Protection</Label>
@@ -302,7 +237,6 @@ export default function SettingsPage() {
                   <Switch checked={deepWorkProtection} onCheckedChange={setDeepWorkProtection} />
                 </div>
               </div>
-
               <Button onClick={handleSaveNotifications} disabled={isSaving} className="w-full rounded-xl gap-2">
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
                 Save Notification Settings

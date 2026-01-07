@@ -27,30 +27,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
-    console.log("[AuthContext] Initializing...")
 
     const initializeAuth = async () => {
       try {
-        // 1. Check Session (Fast)
         const { data: { session: currentSession } } = await supabase.auth.getSession()
-        console.log("[AuthContext] Session checked:", currentSession ? "Found" : "Null")
         
         if (mounted) {
           setSession(currentSession)
           setUser(currentSession?.user ?? null)
         }
 
-        // 2. Fetch Profile (Background) - CRITICAL FIX: Removed 'await' so this doesn't block the UI
         if (currentSession?.user) {
+          // Fetch profile without blocking
           fetchUserProfile(currentSession.user.id)
         }
       } catch (error) {
-        console.error("[AuthContext] Error initializing auth:", error)
+        console.error("Error initializing auth:", error)
       } finally {
-        // 3. Unblock UI immediately
         if (mounted) {
           setLoading(false)
-          console.log("[AuthContext] Loading state set to false (UI Unblocked)")
         }
       }
     }
@@ -58,14 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log(`[AuthContext] Auth Change: ${event}`)
       if (!mounted) return
       
       setSession(newSession)
       setUser(newSession?.user ?? null)
 
       if (newSession?.user) {
-        // Fetch profile in background on auth change
         fetchUserProfile(newSession.user.id)
       } else {
         setUserProfile(null)
@@ -88,7 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      console.log("[AuthContext] Fetching user profile (Background)...")
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -96,20 +88,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single()
 
       if (error) {
-        // It's okay if this fails, we just won't show the name
-        console.warn("[AuthContext] Profile fetch warning:", error.message)
+        console.warn('Profile fetch warning:', error.message)
       } else if (data) {
-        console.log("[AuthContext] Profile loaded:", data)
         setUserProfile(data)
       }
     } catch (error) {
-      console.error('[AuthContext] Exception fetching profile:', error)
+      console.error('Exception fetching profile:', error)
     }
   }
 
   const loginWithEmail = async (email: string, password: string) => {
     try {
-      console.log("[AuthContext] Login requested")
       const { error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password,
@@ -117,11 +106,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error
 
-      console.log("[AuthContext] Login success, redirecting...")
       window.location.href = "/dashboard"
       
     } catch (error: any) {
-      console.error("[AuthContext] Login failed:", error)
       throw error
     }
   }

@@ -1,9 +1,20 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
+    
+    // Rate Limiting
+    const ip = request.headers.get('x-forwarded-for') || 'anonymous'
+    const { success } = rateLimit(ip, 5, 60 * 60 * 1000) // 5 requests per hour
+    
+    if (!success) {
+      logger.warn('Rate limit exceeded for AI Coach', { ip })
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const {
       data: { user },
@@ -13,6 +24,8 @@ export async function POST(request: NextRequest) {
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    logger.info('AI Coach analysis started', { userId: user.id })
 
     // Get user's habits and recent checkins
     const { data: habits } = await supabase
@@ -100,7 +113,7 @@ If performance is good, still provide one optimization suggestion.`
 
     if (!groqResponse.ok) {
       const error = await groqResponse.text()
-      console.error('Groq API error:', error)
+      logger.error('Groq API Error', { userId: user.id, error })
       throw new Error('Failed to get AI analysis')
     }
 
@@ -108,6 +121,7 @@ If performance is good, still provide one optimization suggestion.`
     const aiMessage = groqData.choices[0]?.message?.content
 
     if (!aiMessage) {
+      logger.error('Groq returned empty response', { userId: user.id })
       throw new Error('No response from AI')
     }
 
@@ -118,7 +132,7 @@ If performance is good, still provide one optimization suggestion.`
       const jsonMatch = aiMessage.match(/\{[\s\S]*\}/)
       parsedResponse = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(aiMessage)
     } catch (parseError) {
-      console.error('JSON parse error:', parseError, 'Raw response:', aiMessage)
+      logger.error('AI JSON Parse Error', { aiMessage, parseError })
       // If parsing fails, return a structured response
       parsedResponse = {
         analysis: aiMessage,
@@ -126,9 +140,10 @@ If performance is good, still provide one optimization suggestion.`
       }
     }
 
+    logger.info('AI Analysis successful', { userId: user.id })
     return NextResponse.json(parsedResponse)
   } catch (error: any) {
-    console.error('AI Coach error:', error)
+    logger.error('AI Coach fatal error', error)
     return NextResponse.json(
       { 
         error: error.message || 'Failed to generate coaching analysis',
