@@ -9,6 +9,8 @@ import { SiteHeader } from "@/components/site-header"
 import { AddHabitDialog } from "@/components/add-habit-dialog"
 import { DashboardSkeleton } from "@/components/dashboard-skeleton"
 import { DailyQuote } from "@/components/daily-quote"
+import { FocusTimer } from "@/components/FocusTimer"
+import { QuickProtocols } from "@/components/QuickProtocols"
 import {
   Dialog,
   DialogContent,
@@ -26,12 +28,13 @@ export default function Dashboard() {
 
   const [habits, setHabits] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [totalFocusMinutes, setTotalFocusMinutes] = useState(0)
   
   const [dataLoading, setDataLoading] = useState(true)
   const [showMissedModal, setShowMissedModal] = useState(false)
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null)
 
-  // 1. Safe Data Fetching Logic
+  // ✅ FIXED: Separate effect for checking auth
   useEffect(() => {
     if (authLoading) return
 
@@ -39,11 +42,13 @@ export default function Dashboard() {
       router.push("/login")
       return
     }
+  }, [user, authLoading, router])
 
-    // Only set loading if we haven't loaded data yet
-    if (habits.length === 0) {
-      setDataLoading(true)
-    }
+  // ✅ FIXED: Separate effect for fetching data (only runs when user is verified)
+  useEffect(() => {
+    if (authLoading || !user) return
+
+    setDataLoading(true)
 
     const fetchHabits = fetch(`/api/habits`)
       .then(res => res.ok ? res.json() : [])
@@ -63,7 +68,7 @@ export default function Dashboard() {
         setDataLoading(false)
       })
 
-  }, [user, authLoading, router])
+  }, [user, authLoading])
 
   const handleStatusChange = async (id: string, status: "completed" | "missed") => {
     const previousHabits = [...habits]
@@ -104,10 +109,26 @@ export default function Dashboard() {
       if (!res.ok) throw new Error('Failed to create')
       const savedHabit = await res.json()
       setHabits([savedHabit, ...habits])
-      toast({ title: "Success", description: "Protocol initialized." })
+      toast({ title: "Success", description: "Habit initialized." })
     } catch (error) {
       toast({ variant: "destructive", title: "Error" })
     }
+  }
+
+  const handleProtocolInstalled = (habitCount: number) => {
+    // Refetch habits to reflect protocol installation
+    fetch(`/api/habits`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setHabits(Array.isArray(data) ? data : []))
+      .catch(() => console.error("Failed to refresh habits"))
+  }
+
+  const handleSessionComplete = (minutes: number) => {
+    setTotalFocusMinutes(prev => prev + minutes)
+    toast({
+      title: "Session Complete",
+      description: `${minutes} minutes of deep work logged.`,
+    })
   }
 
   const confirmMissed = async (reason: string) => {
@@ -137,12 +158,10 @@ export default function Dashboard() {
 
   const completedCount = habits.filter((h) => h.status === "completed").length
   const progressPercentage = habits.length > 0 ? (completedCount / habits.length) * 100 : 0
-  
-  // FIX: Robust name fallback
   const displayName = userProfile?.display_name || user?.user_metadata?.display_name || "Executive"
 
   return (
-    <main className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-12">
+    <main className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-12 relative">
       <SiteHeader />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -152,7 +171,6 @@ export default function Dashboard() {
               <h1 className="text-4xl font-bold tracking-tight mb-2">
                 Hi {displayName}! 👋
               </h1>
-              {/* Daily Quote Component - Refreshes daily via Groq */}
               <DailyQuote />
             </div>
 
@@ -176,7 +194,7 @@ export default function Dashboard() {
 
             {habits.length === 0 ? (
               <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl bg-white/5">
-                <p className="text-muted-foreground">No habits initialized. Start your protocol.</p>
+                <p className="text-muted-foreground">No habits initialized.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -197,8 +215,12 @@ export default function Dashboard() {
         </div>
 
         <aside className="space-y-6">
-          <div className="glass-card p-8 rounded-2xl">
-            <h3 className="text-lg font-semibold mb-6">Performance Summary</h3>
+          {/* Focus Timer Widget */}
+          <FocusTimer onSessionComplete={handleSessionComplete} />
+
+          {/* Performance Summary */}
+          <div className="glass-card p-8 rounded-2xl space-y-6">
+            <h3 className="text-lg font-semibold">Performance Summary</h3>
             <div className="space-y-8">
               <div>
                 <div className="flex justify-between items-end mb-2">
@@ -226,6 +248,9 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* Protocol Library */}
+          <QuickProtocols onProtocolInstalled={handleProtocolInstalled} />
         </aside>
       </div>
 

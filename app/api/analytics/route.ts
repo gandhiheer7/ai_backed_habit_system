@@ -42,12 +42,16 @@ export async function GET(request: NextRequest) {
       throw habitsError
     }
 
-    // Calculate metrics
-    const completedCheckins = checkins?.filter((c) => c.status === 'completed').length || 0
-    const totalCheckins = checkins?.length || 0
-    const completionRate = totalCheckins > 0 ? Math.round((completedCheckins / totalCheckins) * 100) : 0
+    // ✅ FIXED: Calculate completion rate based on TODAY's habits
+    const today = new Date().toISOString().split('T')[0]
+    const todayCheckins = checkins?.filter((c) => c.date === today) || []
+    const todayCompletedCount = todayCheckins.filter((c) => c.status === 'completed').length
+    const totalHabitsCount = habits?.length || 0
+    
+    // Completion rate = completed checkins today / total habits
+    const completionRate = totalHabitsCount > 0 ? Math.round((todayCompletedCount / totalHabitsCount) * 100) : 0
 
-    // Calculate total focus minutes
+    // Calculate total focus minutes (all-time)
     const totalFocusMinutes = habits?.reduce((sum, habit) => {
       const durationMatch = habit.duration?.match(/(\d+)/)
       const minutes = durationMatch ? parseInt(durationMatch[1]) : 0
@@ -56,9 +60,9 @@ export async function GET(request: NextRequest) {
     }, 0) || 0
 
     // Calculate current streak (consecutive completed days)
-    const today = new Date()
+    const checkToday = new Date()
     let currentStreak = 0
-    let checkDate = new Date(today)
+    let checkDate = new Date(checkToday)
     
     // Safety break after 30 days
     let daysChecked = 0
@@ -104,7 +108,7 @@ export async function GET(request: NextRequest) {
     const intensityData = []
     
     for (let i = 29; i >= 0; i--) {
-      const date = new Date(today)
+      const date = new Date(checkToday)
       date.setDate(date.getDate() - i)
       const dateStr = date.toISOString().split('T')[0]
       
